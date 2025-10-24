@@ -13,41 +13,75 @@
     body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@700&display=swap');
     
-    .barber-background { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; overflow: hidden; }
-    .barber-background::before {
-        content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    .barber-background { 
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 100vh; /* Use vh instead of % for better mobile support */
+        z-index: -1; 
+        overflow: hidden;
         background-image: url('https://page.gensparksite.com/v1/base64_upload/24a288382bda5c91f4167a946a866d9e');
-        background-size: cover; background-position: center center; background-repeat: no-repeat;
-        /* background-attachment: fixed removed for mobile - it causes jumping/shifting */
+        background-size: cover;
+        background-position: center center;
+        background-repeat: no-repeat;
+        /* Remove pseudo-elements approach for better mobile performance */
     }
     .barber-background::after {
-        content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
         background: linear-gradient(to bottom, rgba(17, 24, 39, 0.75) 0%, rgba(17, 24, 39, 0.85) 50%, rgba(17, 24, 39, 0.9) 100%);
+        pointer-events: none; /* Prevent interaction issues */
     }
+    /* Mobile-specific optimizations */
     @media (max-width: 768px) {
-        .barber-background::before { background-position: center top; }
-        .barber-background::after { background: linear-gradient(to bottom, rgba(17, 24, 39, 0.55) 0%, rgba(17, 24, 39, 0.65) 50%, rgba(17, 24, 39, 0.7) 100%); }
+        .barber-background { 
+            background-position: center top;
+            /* Force GPU acceleration for smoother rendering */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            will-change: transform; /* Hint to browser for optimization */
+        }
+        .barber-background::after { 
+            background: linear-gradient(to bottom, rgba(17, 24, 39, 0.55) 0%, rgba(17, 24, 39, 0.65) 50%, rgba(17, 24, 39, 0.7) 100%); 
+        }
     }
     @media (min-width: 768px) and (max-width: 1024px) {
-        .barber-background::before { 
+        .barber-background { 
             background-position: center center;
-            background-attachment: fixed; /* Enable fixed attachment on tablets */
         }
-        .barber-background::after { background: linear-gradient(to bottom, rgba(17, 24, 39, 0.7) 0%, rgba(17, 24, 39, 0.8) 50%, rgba(17, 24, 39, 0.85) 100%); }
+        .barber-background::after { 
+            background: linear-gradient(to bottom, rgba(17, 24, 39, 0.7) 0%, rgba(17, 24, 39, 0.8) 50%, rgba(17, 24, 39, 0.85) 100%); 
+        }
     }
     @media (min-width: 1024px) {
-        .barber-background::before { 
+        .barber-background { 
             background-position: center center;
-            background-attachment: fixed; /* Enable fixed attachment on desktop */
         }
-        .barber-background::after { background: linear-gradient(to bottom, rgba(17, 24, 39, 0.65) 0%, rgba(17, 24, 39, 0.75) 50%, rgba(17, 24, 39, 0.8) 100%); }
+        .barber-background::after { 
+            background: linear-gradient(to bottom, rgba(17, 24, 39, 0.65) 0%, rgba(17, 24, 39, 0.75) 50%, rgba(17, 24, 39, 0.8) 100%); 
+        }
     }
     .content-wrapper { position: relative; z-index: 1; min-height: 100vh; }
     .booking-card {
-        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-        background: rgba(31, 41, 55, 0.6) !important;
+        background: rgba(31, 41, 55, 0.85) !important;
         border: 1px solid rgba(255, 255, 255, 0.1);
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+        /* Reduce backdrop-filter on mobile for better performance */
+    }
+    /* Enable backdrop blur only on larger screens where it performs better */
+    @media (min-width: 768px) {
+        .booking-card {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            background: rgba(31, 41, 55, 0.6) !important;
+        }
     }
     .brand-logo { text-align: center; margin-bottom: 1.5rem; text-shadow: 2px 2px 8px rgba(0,0,0,0.5); }
     .brand-logo .title {
