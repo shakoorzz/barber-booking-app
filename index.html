@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reservas de Barbería</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Playfair+Display:wght@700&display=swap');
+    
+    .barber-background { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; overflow: hidden; }
+    .barber-background::before {
+        content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background-image: url('https://page.gensparksite.com/v1/base64_upload/24a288382bda5c91f4167a946a866d9e');
+        background-size: cover; background-position: center center; background-repeat: no-repeat;
+    }
+    .barber-background::after {
+        content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(to bottom, rgba(17, 24, 39, 0.75) 0%, rgba(17, 24, 39, 0.85) 50%, rgba(17, 24, 39, 0.9) 100%);
+    }
+    @media (max-width: 768px) {
+        .barber-background::before { background-position: center top; }
+        .barber-background::after { background: linear-gradient(to bottom, rgba(17, 24, 39, 0.55) 0%, rgba(17, 24, 39, 0.65) 50%, rgba(17, 24, 39, 0.7) 100%); }
+    }
+    @media (min-width: 768px) and (max-width: 1024px) {
+        .barber-background::before { background-position: center center; }
+        .barber-background::after { background: linear-gradient(to bottom, rgba(17, 24, 39, 0.7) 0%, rgba(17, 24, 39, 0.8) 50%, rgba(17, 24, 39, 0.85) 100%); }
+    }
+    @media (min-width: 1024px) {
+        .barber-background::before { background-position: center center; }
+        .barber-background::after { background: linear-gradient(to bottom, rgba(17, 24, 39, 0.65) 0%, rgba(17, 24, 39, 0.75) 50%, rgba(17, 24, 39, 0.8) 100%); }
+    }
+    .content-wrapper { position: relative; z-index: 1; min-height: 100vh; }
+    .booking-card {
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        background: rgba(31, 41, 55, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    }
+    .brand-logo { text-align: center; margin-bottom: 1.5rem; text-shadow: 2px 2px 8px rgba(0,0,0,0.5); }
+    .brand-logo .title {
+        font-family: 'Playfair Display', serif; font-size: 3rem; font-weight: 700; line-height: 1.1;
+        background: linear-gradient(135deg, #fde047, #eab308, #b45309);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: block;
+    }
+    .brand-logo .byline {
+        font-family: 'Inter', sans-serif; font-style: italic; font-size: 1rem; color: #d1d5db;
+        margin-top: 0.25rem; display: block; letter-spacing: 0.5px;
+    }
+    @media (max-width: 640px) {
+      .brand-logo .title { font-size: 2.5rem; }
+      .brand-logo .byline { font-size: 0.875rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="barber-background" role="presentation" aria-hidden="true"></div>
+  <div class="content-wrapper">
+    <div id="root"></div>
+  </div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- SUPABASE CONNECTION ---
+    const SUPABASE_URL = 'https://vdjkxwgqglhepwoeevpn.supabase.co'; 
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkamt4d2dxZ2xoZXB3b2VldnBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA2NTg3NjEsImV4cCI6MjA3NjIzNDc2MX0.HhYKn9NDiYbnDPWvWjWsGSKFr1tL9OS5Ob6hH-41Xbk';
+    const { createClient } = window.supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // --- Helper Components ---
+    const Spinner = () => (<div className="flex justify-center items-center p-4"><div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>);
+    const StepIcon = ({ number, completed }) => (<div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${completed ? 'bg-green-500' : 'bg-gray-400'}`}>{completed ? '✓' : number}</div>);
+    
+    // ===== TIME FORMATTING HELPER =====
+    // This handles formatting from ISO timestamps for the agenda view
+    const formatTimeFromISO = (isoString) => {
+      if (!isoString) return '';
+      const date = new Date(isoString);
+      const hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes} ${ampm}`;
+    };
+    
+    // Convert '9:00 AM' to '09:00' for database storage
+    const convertTo24Hour = (timeStr) => {
+      const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (!match) return '00:00';
+      let [_, hour, minute, period] = match;
+      hour = parseInt(hour, 10);
+      if (period.toUpperCase() === 'PM' && hour !== 12) hour += 12;
+      if (period.toUpperCase() === 'AM' && hour === 12) hour = 0;
+      return `${String(hour).padStart(2, '0')}:${minute}`;
+    };
+    // ============================================
+
+    // --- Client-Facing Booking Component ---
+    function BookingView() {
+      const getAvailableSlots = async (date, serviceDuration) => {
+        console.log(`Fetching slots for ${date} with duration ${serviceDuration} mins`);
+        
+        const { data, error } = await supabaseClient.rpc('get_available_slots', {
+          selected_date: date,
+          service_duration_minutes: serviceDuration
+        });
+
+        if (error) {
+          console.error('Error fetching available slots:', error);
+          alert(`Error al cargar horarios: ${error.message}`);
+          return [];
+        }
+        
+        // SQL function returns properly formatted times like '9:00 AM'
+        const slots = data.map(slotObj => slotObj.available_slot);
+        console.log('Received slots from SQL:', slots);
+        return slots;
+      };
+
+      const [currentStep, setCurrentStep] = useState(1);
+      const [services, setServices] = useState([]);
+      const [availableSlots, setAvailableSlots] = useState([]);
+      const [isLoadingServices, setIsLoadingServices] = useState(true);
+      const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+      const [isBooking, setIsBooking] = useState(false);
+      const [selectedService, setSelectedService] = useState(null);
+      const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+      const [selectedSlot, setSelectedSlot] = useState(null);
+      const [clientDetails, setClientDetails] = useState({ name: '', phone: '' });
+      const [bookingConfirmation, setBookingConfirmation] = useState(null);
+
+      useEffect(() => {
+        const fetchServices = async () => {
+          setIsLoadingServices(true);
+          const { data, error } = await supabaseClient.from('services').select('*').eq('is_active', true);
+          if (error) { 
+            console.error('Error fetching services:', error); 
+            alert(`Error al cargar servicios: ${error.message}`); 
+          } 
+          else { setServices(data || []); }
+          setIsLoadingServices(false);
+        };
+        fetchServices();
+      }, []);
+
+      useEffect(() => {
+        if (selectedService && selectedDate) {
+          setIsLoadingSlots(true);
+          setAvailableSlots([]);
+          setSelectedSlot(null);
+          getAvailableSlots(selectedDate, selectedService.duration_minutes)
+            .then(slots => {
+              setAvailableSlots(slots);
+              setIsLoadingSlots(false);
+            });
+        }
+      }, [selectedService, selectedDate]);
+
+      const handleServiceSelect = (service) => { setSelectedService(service); setCurrentStep(2); };
+      const handleDateChange = (event) => { setSelectedDate(event.target.value); };
+      
+      // Store the slot as-is from SQL (already formatted like '9:00 AM')
+      const handleSlotSelect = (slot) => { 
+        setSelectedSlot(slot);
+        setCurrentStep(3); 
+      };
+      
+      const handleClientDetailChange = (event) => { setClientDetails({ ...clientDetails, [event.target.name]: event.target.value }); };
+
+      const handleFormSubmit = async (event) => {
+        event.preventDefault();
+        if (!clientDetails.name || !selectedSlot || !selectedService || !selectedDate) return;
+        setIsBooking(true);
+        setCurrentStep(4);
+        
+        // Convert '9:00 AM' to '09:00' for database
+        const time24 = convertTo24Hour(selectedSlot);
+        const startTime = new Date(`${selectedDate}T${time24}:00`); 
+        const endTime = new Date(startTime.getTime() + selectedService.duration_minutes * 60000);
+        
+        const { data, error } = await supabaseClient.from('appointments').insert([{ 
+          client_name: clientDetails.name.trim(), 
+          client_phone: clientDetails.phone.trim(), 
+          service_id: selectedService.id, 
+          start_time: startTime.toISOString(), 
+          end_time: endTime.toISOString() 
+        }]).select();
+        
+        setIsBooking(false);
+        if (error) { 
+          console.error('❌ Error creating appointment:', error); 
+          alert(`Error al crear la cita: ${error.message}`);
+          setCurrentStep(3); 
+        }
+        else if (data && data.length > 0) { 
+          setBookingConfirmation({ success: true, ...data[0] }); 
+        }
+        else { 
+          alert('Error desconocido al crear la cita');
+          setCurrentStep(3); 
+        }
+      };
+
+      const handleReset = () => {
+        setCurrentStep(1); 
+        setSelectedService(null); 
+        setSelectedDate(new Date().toISOString().split('T')[0]); 
+        setSelectedSlot(null); 
+        setClientDetails({ name: '', phone: '' }); 
+        setBookingConfirmation(null); 
+        setAvailableSlots([]);
+      };
+      
+      const getStepSummary = (step) => {
+        if (step === 1 && selectedService) return `: ${selectedService.name_es}`;
+        if (step === 2 && selectedDate && selectedSlot) { 
+          const dateObj = new Date(`${selectedDate}T00:00:00`); 
+          // selectedSlot is already formatted like '9:00 AM', use it directly
+          return `: ${dateObj.toLocaleDateString('es-ES', { weekday: 'long', month: 'long', day: 'numeric' })} a las ${selectedSlot}`; 
+        }
+        if (step === 3 && clientDetails.name) return `: ${clientDetails.name}`;
+        return '';
+      };
+      
+      return (
+          <div className="w-full max-w-md booking-card rounded-2xl shadow-2xl p-6 md:p-8 space-y-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">Reservar Cita</h1>
+              <p className="text-gray-300 mt-1">Elige un servicio y horario</p>
+            </div>
+            
+            {currentStep === 4 && bookingConfirmation ? (
+              <div className="text-center bg-gray-700/80 p-6 rounded-lg animate-fade-in">
+                <svg className="w-16 h-16 mx-auto text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <h2 className="text-2xl font-bold mt-4 text-white">¡Cita Confirmada!</h2>
+                <div className="mt-4 text-left bg-gray-800/90 p-4 rounded-md space-y-1 text-white">
+                  <p><strong>Servicio:</strong> {selectedService.name_es}</p>
+                  <p><strong>Día:</strong> {new Date(`${selectedDate}T00:00:00`).toLocaleDateString('es-ES', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                  <p><strong>Hora:</strong> {selectedSlot}</p>
+                  <p><strong>Nombre:</strong> {clientDetails.name}</p>
+                  {clientDetails.phone && <p><strong>Teléfono:</strong> {clientDetails.phone}</p>}
+                </div>
+                <button onClick={handleReset} className="mt-6 w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">Reservar Otra Cita</button>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                <div id="step-1">
+                  <h2 className="text-xl font-semibold flex items-center text-white"><StepIcon number="1" completed={currentStep > 1} /><span className="ml-3">Elige un Servicio</span><span className="text-sm text-gray-400 ml-2">{getStepSummary(1)}</span></h2>
+                  {currentStep === 1 && (<div className="mt-4 space-y-3 pl-11 animate-fade-in">{isLoadingServices ? <Spinner /> : services.length > 0 ? (services.map(service => (<button key={service.id} onClick={() => handleServiceSelect(service)} className="w-full text-left p-4 bg-gray-700/80 rounded-lg hover:bg-amber-600 transition-all flex justify-between items-center text-white"><div><p className="font-bold">{service.name_es}</p><p className="text-sm text-gray-300">{service.duration_minutes} min</p></div><p className="font-semibold text-lg">${service.price.toFixed(2)}</p></button>))) : (<p className="text-center text-gray-400 py-4">No hay servicios disponibles.</p>)}</div>)}
+                </div>
+                
+                {currentStep >= 2 && selectedService && (
+                  <div id="step-2">
+                    <h2 className="text-xl font-semibold flex items-center text-white"><StepIcon number="2" completed={currentStep > 2} /><span className="ml-3">Elige Fecha y Hora</span><span className="text-sm text-gray-400 ml-2">{getStepSummary(2)}</span></h2>
+                    {currentStep === 2 && (
+                      <div className="mt-4 pl-11 space-y-4 animate-fade-in">
+                        <div><label htmlFor="date-picker" className="block text-sm font-medium text-gray-300 mb-1">Fecha</label><input type="date" id="date-picker" value={selectedDate} min={new Date().toISOString().split('T')[0]} onChange={handleDateChange} className="w-full p-2 bg-gray-700/80 border border-gray-600 rounded-lg text-white"/></div>
+                        <div>
+                          {isLoadingSlots ? (
+                            <Spinner />
+                          ) : (
+                            <div className="grid grid-cols-3 gap-2">
+                              {availableSlots.length > 0 ? (
+                                availableSlots.map(slot => (
+                                  <button 
+                                    key={slot} 
+                                    onClick={() => handleSlotSelect(slot)}
+                                    className="p-2 bg-gray-700/80 rounded-lg text-center hover:bg-amber-600 text-white transition-colors text-sm"
+                                  >
+                                    {slot}
+                                  </button>
+                                ))
+                              ) : (
+                                <p className="col-span-3 text-center text-gray-400 py-4">No hay horarios disponibles.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {currentStep >= 3 && selectedSlot && (
+                  <div id="step-3">
+                    <h2 className="text-xl font-semibold flex items-center text-white"><StepIcon number="3" completed={currentStep > 3} /><span className="ml-3">Tus Datos</span><span className="text-sm text-gray-400 ml-2">{getStepSummary(3)}</span></h2>
+                    {currentStep === 3 && (
+                      <form onSubmit={handleFormSubmit} className="mt-4 pl-11 space-y-4 animate-fade-in">
+                        <div><label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-1">Nombre Completo *</label><input type="text" id="name" name="name" required value={clientDetails.name} onChange={handleClientDetailChange} className="w-full p-2 bg-gray-700/80 border border-gray-600 rounded-lg text-white" placeholder="Juan Pérez"/></div>
+                        <div><label htmlFor="phone" className="block text-sm font-medium text-gray-300 mb-1">Teléfono (Opcional)</label><input type="tel" id="phone" name="phone" value={clientDetails.phone} onChange={handleClientDetailChange} className="w-full p-2 bg-gray-700/80 border border-gray-600 rounded-lg text-white" placeholder="+1 234 567 8900"/></div>
+                        <button type="submit" disabled={isBooking} className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-4 rounded-lg disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors">{isBooking ? 'Confirmando...' : 'Confirmar Cita'}</button>
+                      </form>
+                    )}
+                  </div>
+                )}
+                
+                {currentStep === 4 && isBooking && (
+                  <div className="text-center p-6"><Spinner /><p className="mt-2 text-gray-400">Agendando tu cita...</p></div>
+                )}
+              </div>
+            )}
+          </div>
+      );
+    }
+
+    // --- Barber-Facing Agenda Component ---
+    function AgendaView() {
+        const [appointments, setAppointments] = useState([]);
+        const [isLoading, setIsLoading] = useState(true);
+        const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+        const [deletingId, setDeletingId] = useState(null);
+
+        const fetchAppointments = async () => {
+            setIsLoading(true);
+            const startOfDayString = `${selectedDate}T00:00:00`;
+            const endOfDayString = `${selectedDate}T23:59:59`;
+            const { data, error } = await supabaseClient.from('appointments').select(`*, service:services (name_es)`).gte('start_time', startOfDayString).lte('start_time', endOfDayString).order('start_time', { ascending: true });
+            if (error) { 
+              console.error('❌ Error fetching appointments:', error); 
+              alert(`Error al cargar la agenda: ${error.message}`); 
+            } 
+            else { setAppointments(data || []); }
+            setIsLoading(false);
+        };
+
+        useEffect(() => { fetchAppointments(); }, [selectedDate]);
+        
+        const handleDeleteAppointment = async (appointmentId) => {
+            setDeletingId(appointmentId);
+            const { error } = await supabaseClient.from('appointments').delete().eq('id', appointmentId);
+            if (error) { 
+              console.error('❌ Error deleting appointment:', error); 
+              alert(`Error al eliminar la cita: ${error.message}`); 
+            } 
+            else { fetchAppointments(); }
+            setDeletingId(null);
+        };
+        
+        const formatDate = (dateString) => {
+          if (!dateString) return '';
+          return new Date(dateString).toLocaleDateString('es-ES', { weekday: 'short', month: 'short', day: 'numeric' });
+        };
+        
+        return (
+            <div className="w-full max-w-md booking-card rounded-2xl shadow-2xl p-6 md:p-8 space-y-6">
+                <div className="text-center"><h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">Mi Agenda</h1><p className="text-gray-300 mt-1">Citas agendadas</p></div>
+                <div><label htmlFor="agenda-date-picker" className="block text-sm font-medium text-gray-300 mb-1">Seleccionar Fecha</label><input type="date" id="agenda-date-picker" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full p-2 bg-gray-700/80 border border-gray-600 rounded-lg text-white" /></div>
+                <div className="space-y-4">
+                  {isLoading ? <Spinner /> : appointments.length > 0 ? (
+                    appointments.map(apt => (
+                      <div key={apt.id} className="bg-gray-700/80 p-4 rounded-lg flex items-center space-x-4 animate-fade-in relative">
+                        <div className="bg-gray-900/90 text-amber-400 font-bold p-3 rounded-md flex flex-col items-center justify-center min-w-[85px]">
+                            <span className="text-base">{formatTimeFromISO(apt.start_time)}</span>
+                            <span className="text-xs text-gray-400 mt-1">{formatDate(apt.start_time)}</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-lg text-white">{apt.client_name}</p>
+                            <p className="text-sm text-gray-300">{apt.service?.name_es || 'N/A'}</p>
+                            {apt.client_phone && (<p className="text-xs text-gray-400 mt-1">📞 {apt.client_phone}</p>)}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <div className={`px-2 py-1 rounded text-xs font-semibold ${apt.status === 'booked' ? 'bg-green-600 text-white' : 'bg-gray-600 text-white'}`}>{apt.status || 'booked'}</div>
+                            <button onClick={() => handleDeleteAppointment(apt.id)} disabled={deletingId === apt.id} className="p-2 bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed" title="Eliminar cita">{deletingId === apt.id ? (<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>) : (<svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>)}</button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">
+                      <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                      <p>No hay citas para el día seleccionado.</p>
+                      <p className="text-xs mt-2">Fecha: {selectedDate}</p>
+                    </div>
+                  )}
+                </div>
+            </div>
+        );
+    }
+
+    // --- Main App Component ---
+    function App() {
+      const [currentView, setCurrentView] = useState('booking');
+      return (
+        <div className="min-h-screen text-white flex flex-col items-center p-4 md:p-8 space-y-4">
+          <div className="brand-logo"><span className="title">El Arte del Corte</span><span className="byline">por David</span></div>
+          <div className="w-full max-w-md booking-card p-2 rounded-full flex justify-around">
+            <button onClick={() => setCurrentView('booking')} className={`w-1/2 py-2 rounded-full font-semibold transition-colors ${currentView === 'booking' ? 'bg-amber-600' : 'bg-transparent hover:bg-gray-700'}`}>Vista Cliente</button>
+            <button onClick={() => setCurrentView('agenda')} className={`w-1/2 py-2 rounded-full font-semibold transition-colors ${currentView === 'agenda' ? 'bg-amber-600' : 'bg-transparent hover:bg-gray-700'}`}>Vista Admin</button>
+          </div>
+          {currentView === 'booking' ? <BookingView /> : <AgendaView />}
+        </div>
+      );
+    }
+    
+    // --- Render the App ---
+    ReactDOM.render(
+      <div><App /><style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }`}</style></div>,
+      document.getElementById('root')
+    );
+  </script>
+</body>
+</html>
